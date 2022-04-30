@@ -1,0 +1,78 @@
+[package]
+name = "golems"
+version = "0.1.0"
+authors = ["RedEyedMars <greg_estouffey@hotmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.78"
+wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
+nodejs-helper = "0.0.3"
+js-sys = "0.3.56"
+wasm-bindgen-futures = "0.4.19"
+futures = "0.3.19"
+
+failure = "0.1"
+soa_derive = "0.8.1"
+half = "1.1.1"
+image = "0.22.1"
+rand = "0.8.4"
+getrandom = { version = "0.2", features = ["js"] }
+packed_simd = { version = "0.3.6", package = "packed_simd_2" }
+generational-arena = "0.2.8"
+maplit = "1.0.2"
+byteorder = "1.4.3"
+
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = { version = "0.1.7", optional = true }
+# `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
+# compared to the default allocator's ~10K. It is slower than the default
+# allocator, however.
+#
+# Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
+wee_alloc = { version = "0.4.5", optional = true }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[dependencies.web-sys]
+version = "0.3.22"
+features = [
+  "MessageEvent",
+  "RtcPeerConnection",
+  "RtcConfiguration",
+  "RtcIceServer",
+  "RtcIceCandidateInit",
+  "RtcSignalingState",
+  "RtcSdpType",
+  "RtcSessionDescriptionInit",
+  "RtcPeerConnectionIceEvent",
+  "RtcIceCandidate",
+  "RtcDataChannel",
+  "RtcDataChannelEvent",
+  "RtcOfferOptions",
+  "RtcIceCandidateInit",
+  "RtcSessionDescription",
+  "RtcDataChannel", "RtcDataChannelState",
+  "RtcDataChannelType",
+  "WebSocket",
+
+  "BinaryType",
+  "Blob",
+  "FileReader",
+
+  "ProgressEvent",
+  "ErrorEvent",
+]

@@ -1,0 +1,49 @@
+[package]
+name = "server"
+version = "0.1.0"
+authors = ["Geoffrey Guest <greg_estouffey@homtail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rocket = { git = "https://github.com/SergioBenitez/Rocket" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket" }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_derive = "1.0"
+
+log = "0.4"
+fern = "0.5"
+
+
+failure = "0.1"
+maplit = "1.0.2"
+
+websocket = "0.20.2"
+
+uuid = { version = "0.8", features = ["v4"] }
+
+
+[dependencies.web-sys]
+version = "0.3.22"
+features = [
+  "MessageEvent",
+  "RtcPeerConnection",
+  "RtcConfiguration",
+  "RtcIceServer",
+  "RtcIceCandidateInit",
+  "RtcSignalingState",
+  "RtcSdpType",
+  "RtcSessionDescriptionInit",
+  "RtcPeerConnectionIceEvent",
+  "RtcIceCandidate",
+  "RtcDataChannel",
+  "RtcDataChannelEvent",
+  "RtcOfferOptions",
+  "RtcIceCandidateInit",
+  "RtcSessionDescription",
+  "RtcDataChannel", "RtcDataChannelState",
+  "RtcDataChannelType",
+]
