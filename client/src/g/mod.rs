@@ -1,6 +1,9 @@
 use packed_simd::u32x2;
 use serde::Serialize;
 use std::collections::HashMap;
+
+pub mod screen;
+
 #[derive(Serialize)]
 pub struct GraphicPositions {
     pub xys: HashMap<u16, Vec<WrapperU32x2>>,

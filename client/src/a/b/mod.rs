@@ -1,53 +1,168 @@
 use crate::a::GameState;
 
-use packed_simd::{f32x2, u32x2};
+use packed_simd::{cptrx4, m32x4, mptrx4};
 
-pub mod tiles;
-use tiles::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+
+pub mod ally;
+pub mod progress;
+pub mod view;
+pub mod zone;
+
+use progress::{Progress4, ProgressAttribute};
+use view::View;
+use zone::Zone;
 
 #[repr(u8)]
 #[wasm_bindgen]
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
-pub enum Wall {
-    BlockWall,
+pub enum Faction {
+    Might,
+    Magic,
+    Guile,
 }
 
-impl Wall {
-    pub fn render_text(&self) {
-        nodejs_helper::console::log("W|")
-    }
+#[repr(u8)]
+#[wasm_bindgen]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum Guild {
+    Warrior,
+    Barbarian,
+    Guardian,
+    //
+    Priest,
+    WitchDoctor,
+    Herbalist,
+    //
+    Rogue,
+    Hunter,
+    Assasin,
+    //
+    Mage,
+    Summoner,
+    Elementalist,
+}
 
-    pub fn as_text(&self) -> String {
-        String::from("W|")
-    }
+#[repr(u8)]
+#[wasm_bindgen]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum ExecutionErrorType {
+    ExecutionBaseLoop,
 }
 
 #[wasm_bindgen]
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub struct ExecutionError {
+    value: String,
+    kind: ExecutionErrorType,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+pub enum AllyPartyStatusType {
+    Working,
+    Researching,
+    Battling,
+    Resting,
+    Drinking,
+    Exploring,
+    Idle,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct AllyPartyStatus {
+    kind: AllyPartyStatusType,
+    assigned_4: m32x4,
+    refs: [Option<RefCell<AllyParty>>; 4usize],
+    progress_4: Progress4,
+    progress_attributes: ProgressAttribute,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum PartyType {
+    Player,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct AllyParty {
+    kind: PartyType,
+    status: *mut AllyPartyStatus,
+    name: cptrx4<String>,
+    faction: cptrx4<Faction>,
+    guild: cptrx4<Guild>,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum AdversaryType {
+    Enemy,
+}
+
+#[wasm_bindgen]
+#[derive(PartialEq, Clone, Debug)]
+pub struct Adversary {
+    name: String,
+    kind: AdversaryType,
+    faction: Faction,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum GuideType {
+    Researcher,
+}
+
+#[wasm_bindgen]
+#[derive(PartialEq, Clone, Debug)]
+pub struct Guide {
+    value: String,
+    kind: GuideType,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum ProgressStateType {
+    Idle,
+    Processing,
+    Complete,
+    Void,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct ProgressState<T> {
+    kind: ProgressStateType,
+    state: T,
+    value: f32,
+}
+
+impl<T: Clone> ProgressState<T> {
+    pub fn completed(&self) -> Option<(T, f32)> {
+        if let ProgressStateType::Complete = self.kind {
+            return Some((self.state.clone(), self.value));
+        } else {
+            return None;
+        }
+    }
+}
+
+#[wasm_bindgen]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Board {
-    tiles: Vec<Tile>,
-    name: Vec<u8>,
-    width: u32,
-    height: u32,
+    current_view: View,
+    zone: HashMap<View, Zone>,
 }
 
 impl Board {
     pub fn empty() -> Board {
         Board {
-            tiles: Vec::new(),
-            name: Vec::new(),
-            width: 10,
-            height: 6,
+            current_view: View::Town,
+            zone: HashMap::new(),
         }
     }
-    pub fn new(name: String, width: usize, height: usize) -> Board {
-        let mut tiles = Vec::with_capacity(width * height);
-        for _ in 0..height {
-            for _ in 0..width {
-                tiles.push(Tile::Empty);
-            }
-        }
+    pub fn new(view: View) -> Board {
         Board {
             /*
             grid_img: Img::new(
@@ -57,129 +172,52 @@ impl Board {
                 Animation::MainXShift2x16,
                 res,
             )?,*/
-            tiles: tiles,
-            name: name.into_bytes().to_vec(),
-            width: width as u32,
-            height: height as u32,
+            current_view: view,
+            zone: HashMap::new(),
         }
     }
     pub fn execute(&mut self) -> Result<(), failure::Error> {
+        for (_view, zone) in self.zone.iter_mut() {
+            zone.execute()?;
+        }
         Ok(())
     }
     pub fn render(&self, _game: &GameState) -> Result<(), failure::Error> {
         //self.grid_img.render(game);
         Ok(())
     }
-    pub fn render_text(&self) {
-        for y in 0..self.height as u32 {
-            let mut buf = String::from("");
-            for x in 0..self.width as u32 {
-                buf.push_str(
-                    self.tiles[self.index(u32x2::new(x, (self.height - 1) as u32 - y))]
-                        .as_text()
-                        .as_str(),
-                );
-            }
-            nodejs_helper::console::log(buf.as_str());
-        }
+    pub unsafe fn render_text(&self) {
+        self.current_view.render_text();
         nodejs_helper::console::log("===================================================");
     }
     pub fn as_text(&self) -> String {
         let mut buf = String::from("");
-        for y in 0..self.height as u32 {
-            for x in 0..self.width as u32 {
-                buf.push_str(
-                    self.tiles
-                        .get(self.index(u32x2::new(x, (self.height - 1) as u32 - y)))
-                        .unwrap()
-                        .as_text()
-                        .as_str(),
-                );
-            }
-            buf.push_str("\n");
-        }
+        buf.push_str(self.current_view.as_text());
         buf.push_str("===================================================");
         buf
     }
-    pub fn walls(&self) -> Vec<(Wall, f32x2)> {
-        let mut result = Vec::new();
-        for (index, tile) in self.tiles.iter().enumerate() {
-            if let Tile::Wall = tile {
-                result.push((Wall::BlockWall, self.fxy(index)));
-            }
+    pub fn view(&self) -> &View {
+        &self.current_view
+    }
+    pub fn change_view(&mut self, new_view: View) {
+        self.current_view = new_view;
+    }
+    pub fn add_zone(&mut self, zone: Zone) {
+        self.zone.insert(zone.view(), zone);
+    }
+}
+//test
+impl Board {
+    pub fn test_init_1(&mut self) {
+        let mut zone = Zone::new(View::Town, None);
+        unsafe {
+            zone.add(RefCell::new(AllyParty::new(
+                String::from("joe"),
+                Faction::Might,
+                Guild::Warrior,
+            )));
+            zone.activate("joe", AllyPartyStatusType::Resting);
         }
-        result
-    }
-    pub fn add_wall(&mut self, xy: u32x2) -> Result<(), ()> {
-        let index = ((xy.extract(1)) * self.width + (xy.extract(0))) as usize;
-        self.tiles.remove(index);
-        self.tiles.insert(index, Tile::Wall);
-        Ok(())
-    }
-    pub fn get_tile(&self, x: u32, y: u32) -> &Tile {
-        self.tiles.get(self.index(u32x2::new(x, y))).unwrap()
-    }
-    pub fn get_tile_from_position(&self, xy: u32x2) -> &Tile {
-        self.tiles.get(self.index(xy)).unwrap()
-    }
-
-    pub fn index(&self, xy: u32x2) -> usize {
-        ((xy.extract(1)) * self.width + (xy.extract(0))) as usize
-    }
-    pub fn xy(&self, i: usize) -> u32x2 {
-        u32x2::new(i as u32 % self.width as u32, i as u32 / self.width as u32)
-    }
-    pub fn fxy(&self, i: usize) -> f32x2 {
-        f32x2::new(
-            (i as u32 % self.width as u32) as f32,
-            (i as u32 / self.width as u32) as f32,
-        )
-    }
-    pub fn apply_on_tile<T>(
-        &mut self,
-        obj: &T,
-        xy: u32x2,
-        f: &dyn Fn(&Tile, &T) -> Result<Tile, ()>,
-    ) -> Result<Tile, ()>
-    where
-        T: std::any::Any,
-    {
-        use std::mem::replace;
-        let index = ((xy.extract(1)) * self.width + (xy.extract(0))) as usize;
-        let tile = self.tiles.get(index).unwrap().clone();
-        let v = f(&tile, obj)?;
-        let _ = replace(&mut self.tiles[index], v.clone());
-        Ok(v)
-    }
-
-    pub fn apply_on_both_tile<T>(
-        &mut self,
-        obj: &T,
-        xy1: u32x2,
-        f1: &dyn Fn(&Tile, &T) -> Result<Tile, ()>,
-        xy2: u32x2,
-        f2: &dyn Fn(&Tile, &T) -> Result<Tile, ()>,
-    ) -> Result<(Tile, Tile), ()>
-    where
-        T: std::any::Any,
-    {
-        use std::mem::replace;
-        let index1 = ((xy1.extract(1)) * self.width + (xy1.extract(0))) as usize;
-        let index2 = ((xy2.extract(1)) * self.width + (xy2.extract(0))) as usize;
-        let tile1 = self.tiles.get(index1).unwrap().clone();
-        let tile2 = self.tiles.get(index2).unwrap().clone();
-        let v = (f1(&tile1, obj)?, f2(&tile2, obj)?);
-        let _ = replace(&mut self.tiles[index1], v.0.clone());
-        let _ = replace(&mut self.tiles[index2], v.1.clone());
-        Ok(v)
-    }
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-    pub fn name(&self) -> &Vec<u8> {
-        &self.name
+        self.add_zone(zone);
     }
 }

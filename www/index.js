@@ -23,11 +23,10 @@ window.onload = async () => {
   const hem = window.hem = await wasm();
   let game = await GameState.new();
   let sockets = await Socketry.new();
-
-  const a_meta = new Int32Array(hem.memory.buffer, meta(), 32 * 4);
-  const a_img_ids = new Int32Array(hem.memory.buffer, img_ids(), 1024 * 4);
-  const a_xs = new Float32Array(hem.memory.buffer, xs(), 1024 * 4);
-  const a_ys = new Float32Array(hem.memory.buffer, ys(), 1024 * 4);
+  const screen = game.screen(0);
+  console.log(screen);
+  console.log(new Int16Array(hem.memory.buffer, screen[0].x, screen[0].s * 4));
+  console.log(new Int16Array(hem.memory.buffer, screen[0].x, screen[0].s * 4)[0]);
 
   loadImages();
   while(game_running) {
@@ -40,7 +39,7 @@ window.onload = async () => {
       break;
     }
     game.render();
-    animate(a_meta, a_img_ids, a_xs, a_ys);
+    //animate(a_meta, a_img_ids, a_xs, a_ys);
     await sleep();
   }
 };

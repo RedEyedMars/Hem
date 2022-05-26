@@ -26,7 +26,7 @@ half = "1.1.1"
 image = "0.22.1"
 rand = "0.8.4"
 getrandom = { version = "0.2", features = ["js"] }
-packed_simd = { version = "0.3.6", package = "packed_simd_2" }
+packed_simd = { version = "0.3.7", package = "packed_simd_2" }
 generational-arena = "0.2.8"
 maplit = "1.0.2"
 byteorder = "1.4.3"

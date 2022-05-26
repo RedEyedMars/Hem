@@ -4,6 +4,7 @@ pub mod e;
 pub mod input;
 pub mod socket;
 
+use crate::g::screen::{ElementDto, Screen};
 use b::Board;
 use e::a::Particle;
 use e::b::AbilityClass;
@@ -28,7 +29,7 @@ pub enum Direction {
     South,
 }
 
-use packed_simd::{f32x2, f32x4, u32x2};
+use packed_simd::{f32x2, u32x2};
 const VEL: f32 = 0.1f32;
 impl Direction {
     pub fn advance(&self, xy: f32x2, width: f32, height: f32) -> Result<f32x2, ()> {
@@ -145,35 +146,11 @@ impl Colour {
     }
 }
 
-pub enum Collider<'a> {
-    Enemy(&'a Board, &'a mut Vec<Monster>, &'a Vec<Player>),
-    HomeField(&'a Board, &'a mut Vec<Monster>, &'a Player),
-}
-impl<'a> Collider<'a> {
-    pub fn has_collision(&self, bx: f32x4) -> bool {
-        match self {
-            Collider::Enemy(board, _, _) => Collider::has_board_collision(board, &bx),
-            Collider::HomeField(board, _, _) => Collider::has_board_collision(board, &bx),
-        }
-    }
-    fn has_board_collision(board: &Board, bx: &f32x4) -> bool {
-        let tile_xy = f32x2::new(0.1f32, 0.1f32);
-        let tile_wh = f32x2::new(0.8f32, 0.8f32);
-        let box_xy = f32x2::new(bx.extract(0), bx.extract(1));
-        let box_wh = f32x2::new(bx.extract(2), bx.extract(3));
-        board
-            .walls()
-            .iter()
-            .map(|(_, xy)| *xy)
-            .filter(|xy| (*xy + tile_wh).gt(box_xy).all())
-            .any(|xy| box_wh.gt(xy + tile_xy).all())
-    }
-}
-
 use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub struct GameState {
     //pub clock: Instant,
+    screen: Screen,
     board: Board,
     boards: Vec<Board>,
     player: Player,
@@ -184,39 +161,12 @@ pub struct GameState {
     frames_to_compute: f32,
 }
 
-static mut META: [i32; 32] = [0; 32];
-
-const WASM_MEMORY_BUFFER_SIZE: usize = 1024;
-static mut IMAGE_IDS: [i32; WASM_MEMORY_BUFFER_SIZE] = [0; WASM_MEMORY_BUFFER_SIZE];
-static mut XS: [f32; WASM_MEMORY_BUFFER_SIZE] = [0f32; WASM_MEMORY_BUFFER_SIZE];
-static mut YS: [f32; WASM_MEMORY_BUFFER_SIZE] = [0f32; WASM_MEMORY_BUFFER_SIZE];
-
-#[wasm_bindgen]
-pub fn meta() -> *const i32 {
-    unsafe { META.as_ptr() }
-}
-
-#[wasm_bindgen]
-pub fn img_ids() -> *const i32 {
-    unsafe { IMAGE_IDS.as_ptr() }
-}
-
-#[wasm_bindgen]
-pub fn xs() -> *const f32 {
-    unsafe { XS.as_ptr() }
-}
-
-#[wasm_bindgen]
-pub fn ys() -> *const f32 {
-    unsafe { YS.as_ptr() }
-}
-
-use web_sys::WebSocket;
 #[wasm_bindgen]
 impl GameState {
     pub async fn new() -> GameState {
         let mut game = GameState {
             //clock: Instant::now(),
+            screen: Screen::new(),
             board: b::Board::empty(),
             board_index: 0usize,
             boards: vec![],
@@ -226,13 +176,18 @@ impl GameState {
             particles: vec![],
             frames_to_compute: 0f32,
         };
-        crate::s::l::read_level("test_b0", &mut game)
-            .await
-            .expect("Found error");
-        game.board.render_text();
+        /*crate::s::l::read_level("test_b0", &mut game)
+        .await
+        .expect("Found error");*/
+        unsafe {
+            game.board.render_text();
+            game.board.test_init_1();
+        }
         game
     }
-
+    pub fn screen(&mut self, index: usize) -> Vec<JsValue> {
+        self.screen.elements(index)
+    }
     pub fn set_frames_to_compute(&mut self, frames: f32) {
         self.frames_to_compute += frames;
     }
@@ -246,38 +201,26 @@ impl GameState {
         if self.frames_to_compute > 1f32 {
             for _ in 0..(self.frames_to_compute as u32) {
                 self.board.execute()?;
-                let colliders =
-                    &Collider::Enemy(&self.board, &mut self.monsters, &self.enemy_players);
-                self.player.execute(colliders);
-                let colliders = &Collider::HomeField(&self.board, &mut self.monsters, &self.player);
+                self.player.execute();
+                /*
                 for p in self.enemy_players.iter_mut() {
-                    //p.execute(colliders);
+                    p.execute(colliders);
                 }
+                */
             }
             self.frames_to_compute -= (self.frames_to_compute as u32) as f32;
             socket::write_to_sockets(vec![self.player.get_socket_message()]);
             socket::read_from_sockets(self);
-            crate::s::l::save_level("test_b1", &self);
+            //crate::s::l::save_level("test_b1", &self);
         }
 
         //
         Ok(true)
     }
     pub fn render(&self) {
+        /*
         let mut i_count = 0;
-        let (player_i, player_x, player_y) = self.player.render();
-        for y in 0..self.board.height() {
-            for x in 0..self.board.width() {
-                for i in self.board.get_tile(x as u32, y as u32).render() {
-                    unsafe {
-                        IMAGE_IDS[i_count] = i;
-                        XS[i_count] = x as f32 - (player_x-3f32) as f32;
-                        YS[i_count] = y as f32 - (player_y-3f32) as f32;
-                    }
-                    i_count += 1;
-                }
-            }
-        }
+        let (player_i, _player_x, _player_y) = self.player.render();
         for (_i, _m) in self.monsters.iter().enumerate() {
             //m.render();
             i_count += 1;
@@ -303,7 +246,7 @@ impl GameState {
         }
         unsafe {
             META[0] = i_count as i32;
-        }
+        }*/
     }
 }
 

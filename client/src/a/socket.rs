@@ -6,19 +6,16 @@ extern crate console_error_panic_hook;
 use std::panic;
 
 use js_sys::Reflect;
-use serde_json::value::Value;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
-    Blob, ErrorEvent, FileReader, MessageEvent, ProgressEvent, RtcConfiguration, RtcDataChannel,
-    RtcDataChannelEvent, RtcDataChannelType, RtcIceCandidate, RtcIceCandidateInit, RtcIceServer,
-    RtcOfferOptions, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,
-    RtcSessionDescription, RtcSessionDescriptionInit, RtcSignalingState, WebSocket,
+    ErrorEvent, MessageEvent, RtcDataChannel, RtcDataChannelEvent, RtcDataChannelType,
+    RtcIceCandidateInit, RtcPeerConnection, RtcPeerConnectionIceEvent, RtcSdpType,
+    RtcSessionDescriptionInit, RtcSignalingState, WebSocket,
 };
 
 use std::collections::HashMap;
-use wasm_bindgen_futures::spawn_local;
 
 static mut SOCKET_BUFFER_1: Vec<SocketMessage> = Vec::new();
 static mut SOCKET_BUFFER_2: Vec<SocketMessage> = Vec::new();
@@ -68,7 +65,7 @@ impl Socketry {
         // For small binary messages, like CBOR, Arraybuffer is more efficient than Blob handling
         ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
         // create callback
-        let ws_clone = ws.clone();
+        //let ws_clone = ws.clone();
         let onmessage_callback = Closure::wrap(Box::new(move |e: MessageEvent| {
             // Handle difference Text/Binary,...
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
@@ -116,7 +113,7 @@ impl Socketry {
         }
     }
 
-    pub async fn handle_socket_events(mut self) -> Socketry {
+    pub async fn handle_socket_events(self) -> Socketry {
         unsafe {
             SOCKET_EVENTS_SWITCH = match SOCKET_EVENTS_SWITCH {
                 0 => 1,
@@ -264,7 +261,6 @@ pub enum SocketMessage {
     Player(u8, PlayerState, f32x2, f32x2),
     Skip,
 }
-use core::slice::Iter;
 impl SocketMessage {
     pub fn buffer(&self) -> Vec<Vec<u8>> {
         match self {
@@ -355,7 +351,7 @@ pub async fn offer_peer(id: u8, remote_id: u8) -> (String, RtcPeerConnection) {
     let peer = RtcPeerConnection::new().expect("Could not create peer");
     console_log!("Created peer connection");
 
-    let onchannel_callback = Closure::wrap(Box::new(move |ev: RtcDataChannelEvent| {
+    let onchannel_callback = Closure::wrap(Box::new(move |_ev: RtcDataChannelEvent| {
         console_log!("Hello data?");
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     peer.set_ondatachannel(Some(onchannel_callback.as_ref().unchecked_ref()));
@@ -365,7 +361,7 @@ pub async fn offer_peer(id: u8, remote_id: u8) -> (String, RtcPeerConnection) {
     dc1.set_binary_type(RtcDataChannelType::Arraybuffer);
     console_log!("dc1 created: label {:?}", dc1.label());
 
-    let dc1c = dc1.clone();
+    let _dc1c = dc1.clone();
     let onmessage_callback = Closure::wrap(Box::new(move |ev: MessageEvent| {
         if let Ok(abuf) = ev.data().dyn_into::<js_sys::ArrayBuffer>() {
             unsafe {
@@ -398,7 +394,7 @@ pub async fn offer_peer(id: u8, remote_id: u8) -> (String, RtcPeerConnection) {
 
     console_log!("After open forget");
     //
-    let onclose_callback = Closure::wrap(Box::new(move |ev: RtcDataChannelEvent| {
+    let onclose_callback = Closure::wrap(Box::new(move |_ev: RtcDataChannelEvent| {
         console_log!("data channel close");
     }) as Box<dyn FnMut(RtcDataChannelEvent)>);
     dc1.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
@@ -484,7 +480,7 @@ pub async fn offer_peer(id: u8, remote_id: u8) -> (String, RtcPeerConnection) {
 }
 
 pub async fn connect_to_peer(offer_sdp: String, remote_id: u8) -> (String, RtcPeerConnection) {
-    let mut peer = RtcPeerConnection::new().expect("Could not create peer!");
+    let peer = RtcPeerConnection::new().expect("Could not create peer!");
     let ondatachannel_callback = Closure::wrap(Box::new(move |ev: RtcDataChannelEvent| {
         let dc2 = ev.channel();
         console_log!("pc2.ondatachannel!: {:?}", dc2.label());
